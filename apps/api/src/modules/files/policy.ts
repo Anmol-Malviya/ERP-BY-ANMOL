@@ -3,6 +3,7 @@ import { AppError,forbidden } from '../../core/errors.js';
 
 const IMAGE=['image/jpeg','image/png','image/webp'];
 const DOCUMENT=[...IMAGE,'application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+const SCAN=[...IMAGE,'application/pdf'];
 const IMPORT=['text/csv','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
 
 export const FILE_POLICIES={
@@ -13,7 +14,8 @@ export const FILE_POLICIES={
  'knowledge-resource':{maxBytes:20*1024*1024,mimeTypes:DOCUMENT,writePermission:PERMISSIONS.COMMUNICATION_WRITE,managerReadPermission:PERMISSIONS.COMMUNICATION_WRITE},
  'school-branding':{maxBytes:5*1024*1024,mimeTypes:IMAGE,writePermission:PERMISSIONS.SCHOOL_MANAGE,managerReadPermission:PERMISSIONS.SCHOOL_MANAGE},
  'report-template':{maxBytes:10*1024*1024,mimeTypes:[...DOCUMENT],writePermission:PERMISSIONS.REPORT_CARD_WRITE,managerReadPermission:PERMISSIONS.REPORT_CARD_WRITE},
- 'document-template':{maxBytes:10*1024*1024,mimeTypes:[...DOCUMENT],writePermission:PERMISSIONS.DOCUMENT_WRITE,managerReadPermission:PERMISSIONS.DOCUMENT_WRITE}
+ 'document-template':{maxBytes:10*1024*1024,mimeTypes:[...DOCUMENT],writePermission:PERMISSIONS.DOCUMENT_WRITE,managerReadPermission:PERMISSIONS.DOCUMENT_WRITE},
+ 'oases-scan':{maxBytes:25*1024*1024,mimeTypes:SCAN,writePermission:PERMISSIONS.OASES_EVALUATE,managerReadPermission:PERMISSIONS.OASES_READ}
 } as const;
 export type FilePurpose=keyof typeof FILE_POLICIES;
 
