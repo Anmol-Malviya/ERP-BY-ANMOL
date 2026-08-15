@@ -4,6 +4,7 @@ const S=new Schema({
  academics:{periodMinutes:{type:Number,default:45},workingDays:[Number],gradingScale:Schema.Types.Mixed},
  attendance:{lateAfter:String,minPercentage:{type:Number,default:75}},
  fees:{currency:{type:String,default:'INR'},lateFeeRules:Schema.Types.Mixed},
+ library:{finePerDay:{type:Number,default:2,min:0},studentLoanDays:{type:Number,default:14,min:1,max:365},teacherLoanDays:{type:Number,default:30,min:1,max:365},staffLoanDays:{type:Number,default:30,min:1,max:365}},
  documents:{signatureUrls:[String],certificatePrefix:String},
  locale:{timezone:{type:String,default:'Asia/Kolkata'},dateFormat:{type:String,default:'DD/MM/YYYY'}},
  updatedAt:{type:Date,default:Date.now}
