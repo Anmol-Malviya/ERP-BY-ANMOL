@@ -5,10 +5,12 @@ import { env } from '../config/env.js';
 import { unauthorized,forbidden } from './errors.js';
 import { DEFAULT_ROLE_PERMISSIONS,type Permission,type SchoolRole } from '@erp/contracts';
 const accessKey=new TextEncoder().encode(env.JWT_ACCESS_SECRET),refreshKey=new TextEncoder().encode(env.JWT_REFRESH_SECRET);
-export type AccessClaims={sub:string;schoolId?:string;role?:SchoolRole;type:'school'|'platform';permissions?:Permission[];profileId?:string;profileType?:'STUDENT'|'TEACHER'|'STAFF'|'GUARDIAN'};
+export type AccessClaims={sub:string;schoolId?:string;role?:SchoolRole;type:'school'|'platform'|'platform_mfa';permissions?:Permission[];profileId?:string;profileType?:'STUDENT'|'TEACHER'|'STAFF'|'GUARDIAN';mustChangePassword?:boolean};
 export const signAccessToken=(c:AccessClaims)=>new SignJWT({...c}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setSubject(c.sub).setExpirationTime('15m').sign(accessKey);
+export const signMfaChallenge=(sub:string)=>new SignJWT({sub,type:'platform_mfa'}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setSubject(sub).setExpirationTime('5m').sign(accessKey);
 export const signRefreshToken=(c:AccessClaims,jti:string)=>new SignJWT({...c}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setJti(jti).setSubject(c.sub).setExpirationTime(`${env.REFRESH_TOKEN_TTL_DAYS}d`).sign(refreshKey);
 export async function verifyAccessToken(t:string){const{payload}=await jwtVerify(t,accessKey);return payload as unknown as AccessClaims}
+export async function verifyMfaChallenge(t:string){const{payload}=await jwtVerify(t,accessKey);const claims=payload as unknown as AccessClaims;if(claims.type!=='platform_mfa')throw unauthorized('Invalid MFA challenge');return claims}
 export async function verifyRefreshToken(t:string){const{payload}=await jwtVerify(t,refreshKey);return payload as unknown as AccessClaims&{jti:string}}
 export const hashToken=(t:string)=>createHash('sha256').update(t).digest('hex');
 export const newSessionId=()=>randomBytes(24).toString('hex');
