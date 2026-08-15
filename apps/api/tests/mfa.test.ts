@@ -1,0 +1,3 @@
+import { describe,expect,it } from 'vitest';
+import { generateRecoveryCodes,generateTotp,generateTotpSecret,normalizeRecoveryCode,verifyTotp } from '../src/core/mfa.js';
+describe('TOTP MFA',()=>{it('matches the RFC 6238 SHA1 vector at 59 seconds (last 6 digits)',()=>{const secret='GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';expect(generateTotp(secret,59_000)).toBe('287082');expect(verifyTotp(secret,'287082',59_000,0)).toBe(true)});it('rejects malformed codes',()=>{expect(verifyTotp(generateTotpSecret(),'12ab56')).toBe(false)});it('generates unique normalized recovery codes',()=>{const codes=generateRecoveryCodes(8);expect(codes).toHaveLength(8);expect(new Set(codes.map(normalizeRecoveryCode)).size).toBe(8);expect(normalizeRecoveryCode(codes[0])).toMatch(/^[A-F0-9]{16}$/)})});

@@ -11,4 +11,6 @@ UserSchema.index({schoolId:1,email:1},{unique:true,partialFilterExpression:{emai
 UserSchema.index({schoolId:1,username:1},{unique:true,partialFilterExpression:{username:{$type:'string'},deletedAt:null}});
 const SessionSchema=new Schema({userId:{type:Schema.Types.ObjectId,ref:'User',required:true,index:true},refreshTokenHash:{type:String,required:true,unique:true},userAgent:String,ip:String,expiresAt:{type:Date,required:true,index:true},revokedAt:Date,createdAt:{type:Date,default:Date.now}},{versionKey:false});
 SessionSchema.plugin(tenantPlugin);
-export const User=model('User',UserSchema);export const Session=model('Session',SessionSchema);
+const PasswordResetTokenSchema=new Schema({userId:{type:Schema.Types.ObjectId,ref:'User',required:true,index:true},tokenHash:{type:String,required:true,unique:true,select:false},expiresAt:{type:Date,required:true,index:true},usedAt:Date,createdAt:{type:Date,default:Date.now}},{versionKey:false});
+PasswordResetTokenSchema.plugin(tenantPlugin);PasswordResetTokenSchema.index({expiresAt:1},{expireAfterSeconds:0});
+export const User=model('User',UserSchema);export const Session=model('Session',SessionSchema);export const PasswordResetToken=model('PasswordResetToken',PasswordResetTokenSchema);

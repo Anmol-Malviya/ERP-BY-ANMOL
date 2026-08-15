@@ -3,15 +3,43 @@ on:
   pull_request:
   push:
     branches: [main]
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      MONGODB_URI: mongodb://127.0.0.1:27017/erp_ci
+      REDIS_URL: redis://127.0.0.1:6379
+      JWT_ACCESS_SECRET: ci-access-secret-012345678901234567890123456789
+      JWT_REFRESH_SECRET: ci-refresh-secret-012345678901234567890123456789
+      MFA_ENCRYPTION_KEY: ci-mfa-encryption-secret-012345678901234567890123456789
+      CORS_ORIGINS: http://localhost:5173,http://localhost:5174
+      PASSWORD_RESET_URL: http://localhost:5173/reset-password
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm install
       - run: npm run verify:structure
       - run: npm run typecheck
