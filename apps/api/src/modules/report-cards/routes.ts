@@ -7,7 +7,7 @@ import { enqueueReport } from '../../core/queue.js';
 import { requirePermission } from '../../core/security.js';
 import { getTenantContext } from '../../core/tenant-context.js';
 import { createDownloadUrl,storageBucket } from '../files/storage.js';
-import { assertStudentAccessible } from '../people/access.js';
+import { assertStudentAccessible,relatedStudentReadScope } from '../people/access.js';
 import { Exam } from '../examinations/models.js';
 import { registerReportCardCallbacks } from './callbacks.js';
 import { ReportCard,ReportTemplate } from './models.js';
@@ -19,6 +19,11 @@ const safeName=(value:string)=>value.replace(/[^A-Za-z0-9._-]/g,'_').slice(0,120
 export async function reportCardRoutes(app:FastifyInstance){
  await registerReportCardCallbacks(app);
  await registerCrud(app,{prefix:'/api/report-templates',model:ReportTemplate,entity:'report-template',readPermission:PERMISSIONS.REPORT_CARD_READ,writePermission:PERMISSIONS.REPORT_CARD_WRITE,searchable:['name']});
+ app.get('/api/report-cards',{preHandler:requirePermission(PERMISSIONS.REPORT_CARD_READ)},async(request:any)=>{
+  const scope:any=await relatedStudentReadScope(request),limit=Math.min(Math.max(Number(request.query?.limit)||50,1),200);if(request.query?.studentId){if(!validId(request.query.studentId))throw new AppError(400,'INVALID_STUDENT','Invalid studentId');await assertStudentAccessible(request,request.query.studentId);scope.studentId=new Types.ObjectId(String(request.query.studentId))}if(request.query?.examId){if(!validId(request.query.examId))throw new AppError(400,'INVALID_EXAM','Invalid examId');scope.examId=new Types.ObjectId(String(request.query.examId))}
+  if(['STUDENT','PARENT'].includes(request.auth?.role)){const publishedExamIds=await Exam.distinct('_id',{status:'PUBLISHED'});scope.examId=scope.examId?{$eq:scope.examId,$in:publishedExamIds}:{$in:publishedExamIds}}
+  const rows=await ReportCard.find(scope).sort({createdAt:-1}).limit(limit).populate('studentId','firstName lastName admissionNo rollNo classId sectionId').populate('examId','name term status').populate('templateId','name version').lean();return{success:true,data:rows};
+ });
  app.post('/api/report-cards/generate',{preHandler:requirePermission(PERMISSIONS.REPORT_CARD_WRITE)},async(request:any)=>{
   const{studentId,examId,templateId}=request.body??{};if(!validId(studentId)||!validId(examId)||(templateId&&!validId(templateId)))throw new AppError(400,'INVALID_INPUT','Valid studentId, examId and optional templateId are required');
   const template=templateId?await ReportTemplate.findById(templateId).lean():null;if(templateId&&!template)throw new AppError(404,'NOT_FOUND','Report template not found');const data=await buildReportCardData(studentId,examId);const schoolId=getTenantContext()?.schoolId;if(!schoolId)throw new AppError(403,'TENANT_REQUIRED','School context required');
