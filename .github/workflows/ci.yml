@@ -42,6 +42,18 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run verify:structure
-      - run: npm run typecheck
+      - name: Typecheck all applications
+        shell: bash
+        run: |
+          set +e
+          failed=0
+          for project in apps/api apps/web apps/super-admin apps/worker packages/contracts; do
+            echo "::group::Typecheck $project"
+            npx tsc -p "$project/tsconfig.json" --noEmit --pretty false
+            status=$?
+            if [ $status -ne 0 ]; then failed=1; fi
+            echo "::endgroup::"
+          done
+          exit $failed
       - run: npm test
       - run: npm run build
