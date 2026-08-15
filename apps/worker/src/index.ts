@@ -1,59 +1,22 @@
+import { GetObjectCommand,S3Client } from '@aws-sdk/client-s3';
 import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
+import { createConnection,type Socket } from 'node:net';
+import { once } from 'node:events';
 
 const connection=new Redis(process.env.REDIS_URL||'redis://localhost:6379',{maxRetriesPerRequest:null});
 const nodeEnv=process.env.NODE_ENV||'development';
-
+const s3=new S3Client({region:process.env.S3_REGION||'ap-south-1',endpoint:process.env.S3_ENDPOINT||undefined,forcePathStyle:process.env.S3_FORCE_PATH_STYLE==='true'});
 type EmailJob={to:string;subject:string;text?:string;html?:string;replyTo?:string;tags?:Record<string,string>};
+type FileScanJob={assetId:string;schoolId:string;bucket:string;key:string;contentType:string;size:number};
 
-async function sendEmail(data:EmailJob){
-  if(!data?.to||!data?.subject||(!data.text&&!data.html))throw new Error('Invalid email job payload');
-  const apiKey=process.env.RESEND_API_KEY;
-  const from=process.env.EMAIL_FROM||'ERP BY ANMOL <no-reply@example.com>';
-  if(!apiKey){
-    if(nodeEnv==='production')throw new Error('RESEND_API_KEY is required for production email delivery');
-    console.log(`[email:development] ${data.to} | ${data.subject}`);
-    return{simulated:true};
-  }
-  const response=await fetch('https://api.resend.com/emails',{
-    method:'POST',
-    headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},
-    body:JSON.stringify({
-      from,to:[data.to],subject:data.subject,text:data.text,html:data.html,reply_to:data.replyTo,
-      tags:data.tags?Object.entries(data.tags).map(([name,value])=>({name,value})):undefined
-    })
-  });
-  const body=await response.text();
-  if(!response.ok)throw new Error(`Email provider rejected request (${response.status}): ${body.slice(0,300)}`);
-  return JSON.parse(body) as unknown;
-}
-
-async function developmentOnlyProcessor(kind:string,data:any){
-  if(nodeEnv==='production')throw new Error(`${kind} provider/processor is not configured for production`);
-  console.log(`[${kind}:development] job received`,data?.id||data?.type||'');
-  return{simulated:true,kind};
-}
-
-const processors:Record<string,(data:any)=>Promise<unknown>>={
-  email:sendEmail,
-  pdf:data=>developmentOnlyProcessor('pdf',data),
-  import:data=>developmentOnlyProcessor('import',data),
-  report:data=>developmentOnlyProcessor('report',data)
-};
-
-const workers=Object.entries(processors).map(([name,processor])=>{
-  const worker=new Worker(`erp:${name}`,job=>processor(job.data),{connection,concurrency:name==='email'?10:3});
-  worker.on('completed',job=>console.log(`[${name}] job ${job.id} completed`));
-  worker.on('failed',(job,error)=>console.error(`[${name}] job ${job?.id} failed`,error));
-  return worker;
-});
-
-async function shutdown(signal:string){
-  console.log(`ERP workers shutting down (${signal})`);
-  await Promise.all(workers.map(worker=>worker.close()));
-  await connection.quit();
-  process.exit(0);
-}
-process.on('SIGTERM',()=>void shutdown('SIGTERM'));
-process.on('SIGINT',()=>void shutdown('SIGINT'));
-console.log('ERP workers online: email, pdf, import, report');
+async function sendEmail(data:EmailJob){if(!data?.to||!data?.subject||(!data.text&&!data.html))throw new Error('Invalid email job payload');const apiKey=process.env.RESEND_API_KEY,from=process.env.EMAIL_FROM||'ERP BY ANMOL <no-reply@example.com>';if(!apiKey){if(nodeEnv==='production')throw new Error('RESEND_API_KEY is required for production email delivery');console.log(`[email:development] ${data.to} | ${data.subject}`);return{simulated:true}}const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({from,to:[data.to],subject:data.subject,text:data.text,html:data.html,reply_to:data.replyTo,tags:data.tags?Object.entries(data.tags).map(([name,value])=>({name,value})):undefined})});const body=await response.text();if(!response.ok)throw new Error(`Email provider rejected request (${response.status}): ${body.slice(0,300)}`);return JSON.parse(body) as unknown}
+async function developmentOnlyProcessor(kind:string,data:any){if(nodeEnv==='production')throw new Error(`${kind} provider/processor is not configured for production`);console.log(`[${kind}:development] job received`,data?.id||data?.type||'');return{simulated:true,kind}}
+async function writeChunk(socket:Socket,chunk:Buffer){if(!socket.write(chunk))await once(socket,'drain')}
+async function clamScan(body:AsyncIterable<Uint8Array>,expectedSize:number){const host=process.env.CLAMAV_HOST;if(!host){let consumed=0;for await(const chunk of body)consumed+=chunk.byteLength;if(nodeEnv==='production')throw new Error('CLAMAV_HOST is required for production file scanning');return{status:'CLEAN' as const,detail:`Development scan bypass (${consumed} bytes)`}}const socket=createConnection({host,port:Number(process.env.CLAMAV_PORT||3310)});socket.setTimeout(30_000,()=>socket.destroy(new Error('ClamAV scan timeout')));await once(socket,'connect');let response='';const result=new Promise<string>((resolve,reject)=>{socket.setEncoding('utf8');socket.on('data',chunk=>{response+=chunk;if(response.includes('\0')||response.includes('\n'))resolve(response)});socket.on('error',reject);socket.on('end',()=>resolve(response))});await writeChunk(socket,Buffer.from('zINSTREAM\0'));let total=0;for await(const raw of body){const chunk=Buffer.from(raw);total+=chunk.length;if(total>expectedSize+1024||total>25*1024*1024){socket.destroy();throw new Error('Scanned stream exceeded approved file size')}const length=Buffer.alloc(4);length.writeUInt32BE(chunk.length);await writeChunk(socket,length);await writeChunk(socket,chunk)}await writeChunk(socket,Buffer.alloc(4));const message=(await result).replace(/\0/g,'').trim();socket.destroy();if(/FOUND/i.test(message))return{status:'INFECTED' as const,detail:message.slice(0,500)};if(/OK/i.test(message))return{status:'CLEAN' as const,detail:message.slice(0,500)};throw new Error(`Unexpected ClamAV response: ${message.slice(0,300)}`)}
+async function reportScan(data:FileScanJob,status:'CLEAN'|'INFECTED'|'ERROR',detail:string){const base=(process.env.INTERNAL_API_URL||'http://localhost:4000/api').replace(/\/$/,'');const secret=process.env.WORKER_CALLBACK_SECRET||'development-worker-callback-secret-change-me-1234567890';const response=await fetch(`${base}/internal/files/scan-result`,{method:'POST',headers:{'Content-Type':'application/json','x-worker-secret':secret},body:JSON.stringify({assetId:data.assetId,schoolId:data.schoolId,key:data.key,status,detail})});if(!response.ok)throw new Error(`File scan callback failed (${response.status}): ${(await response.text()).slice(0,300)}`)}
+async function scanFile(data:FileScanJob){try{const object=await s3.send(new GetObjectCommand({Bucket:data.bucket,Key:data.key}));if(!object.Body)throw new Error('Object body unavailable');const result=await clamScan(object.Body as unknown as AsyncIterable<Uint8Array>,Number(data.size));await reportScan(data,result.status,result.detail);return result}catch(error){const detail=error instanceof Error?error.message:'Unknown malware scanner error';await reportScan(data,'ERROR',detail).catch(()=>undefined);throw error}}
+const processors:Record<string,(data:any)=>Promise<unknown>>={email:sendEmail,'file-scan':scanFile,pdf:data=>developmentOnlyProcessor('pdf',data),import:data=>developmentOnlyProcessor('import',data),report:data=>developmentOnlyProcessor('report',data)};
+const workers=Object.entries(processors).map(([name,processor])=>{const worker=new Worker(`erp:${name}`,job=>processor(job.data),{connection,concurrency:name==='email'?10:name==='file-scan'?3:3});worker.on('completed',job=>console.log(`[${name}] job ${job.id} completed`));worker.on('failed',(job,error)=>console.error(`[${name}] job ${job?.id} failed`,error));return worker});
+async function shutdown(signal:string){console.log(`ERP workers shutting down (${signal})`);await Promise.all(workers.map(worker=>worker.close()));await connection.quit();process.exit(0)}
+process.on('SIGTERM',()=>void shutdown('SIGTERM'));process.on('SIGINT',()=>void shutdown('SIGINT'));console.log('ERP workers online: email, file-scan, pdf, import, report');
