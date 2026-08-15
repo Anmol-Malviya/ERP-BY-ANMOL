@@ -10,7 +10,10 @@ const schema=z.object({
  REFRESH_TOKEN_TTL_DAYS:z.coerce.number().int().min(1).max(30).default(7),
  CORS_ORIGINS:z.string().default('http://localhost:5173,http://localhost:5174'),
  COOKIE_DOMAIN:z.string().optional(),
- PASSWORD_RESET_URL:z.string().url().default('http://localhost:5173/reset-password')
+ PASSWORD_RESET_URL:z.string().url().default('http://localhost:5173/reset-password'),
+ RAZORPAY_KEY_ID:z.string().optional(),
+ RAZORPAY_KEY_SECRET:z.string().optional(),
+ RAZORPAY_WEBHOOK_SECRET:z.string().optional()
 });
 export const env=schema.parse(process.env);
 if(env.NODE_ENV==='production'&&(
