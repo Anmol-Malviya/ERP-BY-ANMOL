@@ -6,10 +6,12 @@
 - [x] Non-enumerating password reset with hashed, expiring, single-use reset tokens.
 - [x] Platform TOTP MFA with encrypted secret storage and one-time recovery codes.
 - [x] Redis/BullMQ email job boundary with a real Resend HTTP provider adapter.
+- [x] CI provisions real MongoDB/Redis services and runs tenant-isolation integration tests.
+- [x] Core tenant integration coverage verifies list/read/update/write/aggregate isolation between two schools.
 
 ## Required before public launch
-- [ ] CI typecheck, tests and builds pass from a clean dependency install.
-- [ ] Cross-tenant E2E suite attempts School A access to School B IDs on every sensitive resource.
+- [ ] CI typecheck, tests and builds pass from a clean dependency install on the latest commit.
+- [ ] Extend cross-tenant E2E coverage to every sensitive HTTP resource, not only the central persistence layer.
 - [ ] Every active Platform Super Admin is enrolled in MFA and the recovery procedure is exercised.
 - [ ] Managed MongoDB backups are configured and a restore drill is verified.
 - [ ] Managed Redis is configured with TLS/auth and eviction policy reviewed.
