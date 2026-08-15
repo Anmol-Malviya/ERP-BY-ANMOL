@@ -42,18 +42,15 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run verify:structure
-      - name: Typecheck all applications
-        shell: bash
-        run: |
-          set +e
-          failed=0
-          for project in apps/api apps/web apps/super-admin apps/worker packages/contracts; do
-            echo "::group::Typecheck $project"
-            npx tsc -p "$project/tsconfig.json" --noEmit --pretty false
-            status=$?
-            if [ $status -ne 0 ]; then failed=1; fi
-            echo "::endgroup::"
-          done
-          exit $failed
+      - name: Typecheck API
+        run: npx tsc -p apps/api/tsconfig.json --noEmit --pretty false
+      - name: Typecheck School Web
+        run: npx tsc -p apps/web/tsconfig.json --noEmit --pretty false
+      - name: Typecheck Super Admin
+        run: npx tsc -p apps/super-admin/tsconfig.json --noEmit --pretty false
+      - name: Typecheck Worker
+        run: npx tsc -p apps/worker/tsconfig.json --noEmit --pretty false
+      - name: Typecheck Contracts
+        run: npx tsc -p packages/contracts/tsconfig.json --noEmit --pretty false
       - run: npm test
       - run: npm run build
