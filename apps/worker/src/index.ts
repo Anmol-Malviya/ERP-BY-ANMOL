@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { createConnection,type Socket } from 'node:net';
 import { once } from 'node:events';
 import { PDFDocument,StandardFonts,rgb } from 'pdf-lib';
+import { processImportFile } from './import-runner.js';
 
 const connection=new Redis(process.env.REDIS_URL||'redis://localhost:6379',{maxRetriesPerRequest:null});
 const nodeEnv=process.env.NODE_ENV||'development';
@@ -43,6 +44,6 @@ async function renderDocumentPdf(data:PdfJob){
  }catch(error){const detail=error instanceof Error?error.message:'Unknown PDF renderer error';await internalPost('/internal/documents/render-result',{documentId:data.documentId,schoolId:data.schoolId,key:data.key,status:'FAILED',detail}).catch(()=>undefined);throw error}
 }
 
-const processors:Record<string,(data:any)=>Promise<unknown>>={email:sendEmail,'file-scan':scanFile,'payment-event':data=>internalPost('/internal/payments/webhook/process',{eventId:data.eventId}),'payment-reconcile':data=>internalPost('/internal/payments/reconcile',{limit:data?.limit||50}),pdf:renderDocumentPdf,import:data=>developmentOnlyProcessor('import',data),report:data=>developmentOnlyProcessor('report',data)};
-const workers=Object.entries(processors).map(([name,processor])=>{const worker=new Worker(`erp:${name}`,job=>processor(job.data),{connection,concurrency:name==='email'?10:name==='file-scan'?3:name==='payment-event'?8:name==='pdf'?2:3});worker.on('completed',job=>console.log(`[${name}] job ${job.id} completed`));worker.on('failed',(job,error)=>console.error(`[${name}] job ${job?.id} failed`,error));return worker});
+const processors:Record<string,(data:any)=>Promise<unknown>>={email:sendEmail,'file-scan':scanFile,'payment-event':data=>internalPost('/internal/payments/webhook/process',{eventId:data.eventId}),'payment-reconcile':data=>internalPost('/internal/payments/reconcile',{limit:data?.limit||50}),pdf:renderDocumentPdf,import:data=>processImportFile(s3,internalPost,data),report:data=>developmentOnlyProcessor('report',data)};
+const workers=Object.entries(processors).map(([name,processor])=>{const worker=new Worker(`erp:${name}`,job=>processor(job.data),{connection,concurrency:name==='email'?10:name==='file-scan'?3:name==='payment-event'?8:name==='pdf'?2:name==='import'?2:3});worker.on('completed',job=>console.log(`[${name}] job ${job.id} completed`));worker.on('failed',(job,error)=>console.error(`[${name}] job ${job?.id} failed`,error));return worker});
 async function shutdown(signal:string){console.log(`ERP workers shutting down (${signal})`);await Promise.all(workers.map(worker=>worker.close()));await connection.quit();process.exit(0)}process.on('SIGTERM',()=>void shutdown('SIGTERM'));process.on('SIGINT',()=>void shutdown('SIGINT'));console.log('ERP workers online: email, file-scan, payment-event, payment-reconcile, pdf, import, report');
