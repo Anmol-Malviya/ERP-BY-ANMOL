@@ -1,0 +1,3 @@
+const API=import.meta.env.VITE_API_URL||'http://localhost:4000/api';let accessToken=sessionStorage.getItem('erp_access_token')||'';
+export function setAccessToken(token:string){accessToken=token;sessionStorage.setItem('erp_access_token',token)}
+export async function api<T=any>(path:string,options:RequestInit={}):Promise<T>{const response=await fetch(`${API}${path}`,{...options,credentials:'include',headers:{'Content-Type':'application/json',...(accessToken?{Authorization:`Bearer ${accessToken}`}:{ }),...(options.headers||{})}});const body=await response.json().catch(()=>({success:false,error:{message:'Invalid server response'}}));if(!response.ok)throw new Error(body?.error?.message||'Request failed');return body}

@@ -1,0 +1,17 @@
+{
+  "name": "erp-by-anmol",
+  "version": "2.0.0",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:api": "npm run dev -w @erp/api",
+    "dev:web": "npm run dev -w @erp/web",
+    "dev:super": "npm run dev -w @erp/super-admin",
+    "dev:worker": "npm run dev -w @erp/worker",
+    "typecheck": "npm run typecheck -ws --if-present",
+    "test": "npm run test -ws --if-present",
+    "build": "npm run build -ws --if-present",
+    "verify:structure": "node scripts/verify-structure.mjs"
+  },
+  "engines": { "node": ">=22" }
+}

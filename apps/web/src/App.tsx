@@ -1,0 +1,3 @@
+import{BrowserRouter,Navigate,Route,Routes}from'react-router-dom';import{AuthProvider,useAuth}from'./auth';import{Layout}from'./components/Layout';import Dashboard from'./pages/Dashboard';import Login from'./pages/Login';import ModulePage from'./pages/ModulePage';import{nav}from'./nav';
+function Protected(){const{user}=useAuth();return user?<Layout/>:<Navigate to="/login" replace/>}
+export default function App(){return<BrowserRouter><AuthProvider><Routes><Route path="/login" element={<Login/>}/><Route element={<Protected/>}><Route index element={<Dashboard/>}/>{nav.filter(([,to])=>to!=='/').map(([,to])=><Route key={to} path={to.slice(1)} element={<ModulePage kind={to.slice(1)}/>}/>)}</Route></Routes></AuthProvider></BrowserRouter>}
