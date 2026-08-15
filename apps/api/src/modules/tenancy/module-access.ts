@@ -7,6 +7,7 @@ const cache=new Map<string,CacheEntry>();
 const TTL_MS=30_000;
 
 const routeModules:[RegExp,string][]=[
+  [/^\/api\/dashboard(?:\/|$)/,'dashboard'],
   [/^\/api\/students(?:\/|$)/,'students'],
   [/^\/api\/guardians(?:\/|$)/,'parents'],
   [/^\/api\/teachers(?:\/|$)/,'teachers'],
@@ -23,11 +24,12 @@ const routeModules:[RegExp,string][]=[
   [/^\/api\/library(?:\/|$)/,'library'],
   [/^\/api\/payroll(?:\/|$)/,'payroll'],
   [/^\/api\/leaves(?:\/|$)/,'leaves'],
-  [/^\/api\/(?:notices|grievances|chat-messages|knowledge)(?:\/|$)/,'communication'],
+  [/^\/api\/(?:notices|grievances|chat(?:-messages|\/contacts)?|knowledge)(?:\/|$)/,'communication'],
   [/^\/api\/(?:document-templates|documents)(?:\/|$)/,'documents'],
   [/^\/api\/imports(?:\/|$)/,'imports'],
   [/^\/api\/notifications(?:\/|$)/,'notifications'],
   [/^\/api\/analytics(?:\/|$)/,'analytics'],
+  [/^\/api\/settings(?:\/|$)/,'settings'],
   [/^\/api\/biometric(?:\/|$)/,'biometric'],
   [/^\/api\/oases(?:\/|$)/,'oases'],
   [/^\/api\/audit(?:\/|$)/,'audit']
