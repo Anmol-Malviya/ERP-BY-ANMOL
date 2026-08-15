@@ -1,44 +1,28 @@
 import type { FastifyInstance } from 'fastify';
+import { Types } from 'mongoose';
 import { PERMISSIONS } from '@erp/contracts';
-import { requirePermission } from '../../core/security.js';
-import { Student,Teacher } from '../people/models.js';
-import { getTenantContext } from '../../core/tenant-context.js';
 import { AppError } from '../../core/errors.js';
+import { enqueueImport } from '../../core/queue.js';
+import { requirePermission } from '../../core/security.js';
+import { getTenantContext } from '../../core/tenant-context.js';
+import { FileAsset } from '../files/models.js';
+import { storageBucket } from '../files/storage.js';
+import { registerImportCallbacks } from './callbacks.js';
+import { ImportJob } from './models.js';
+import type { ImportType } from './service.js';
 
-type ImportType='students'|'teachers';
 const allowed=new Set<ImportType>(['students','teachers']);
-
-function validateRows(type:ImportType,rows:any[]){
-  const errors:Array<{row:number;field:string;message:string}>=[];
-  rows.forEach((row,index)=>{
-    if(!String(row?.firstName||'').trim())errors.push({row:index+1,field:'firstName',message:'Required'});
-    if(type==='students'&&!String(row?.admissionNo||'').trim())errors.push({row:index+1,field:'admissionNo',message:'Required'});
-    if(type==='teachers'&&!String(row?.employeeNo||'').trim())errors.push({row:index+1,field:'employeeNo',message:'Required'});
-  });
-  return errors;
-}
+const validId=(value:any)=>Types.ObjectId.isValid(String(value||''));
 
 export async function importRoutes(app:FastifyInstance){
-  app.post('/api/imports/preview',{preHandler:requirePermission(PERMISSIONS.IMPORT_RUN)},async(request:any)=>{
-    const{type,rows}=request.body??{};
-    if(!allowed.has(type as ImportType)||!Array.isArray(rows))throw new AppError(400,'INVALID_INPUT','Supported import types are students and teachers');
-    if(rows.length>5_000)throw new AppError(413,'IMPORT_TOO_LARGE','A single synchronous import is limited to 5,000 rows');
-    const errors=validateRows(type as ImportType,rows);
-    return{success:true,data:{valid:errors.length===0,total:rows.length,errors}};
-  });
-
-  app.post('/api/imports/commit',{preHandler:requirePermission(PERMISSIONS.IMPORT_RUN)},async(request:any)=>{
-    const{type,rows}=request.body??{};
-    if(!allowed.has(type as ImportType)||!Array.isArray(rows))throw new AppError(400,'INVALID_INPUT','Invalid import payload');
-    if(rows.length>5_000)throw new AppError(413,'IMPORT_TOO_LARGE','A single synchronous import is limited to 5,000 rows');
-    const errors=validateRows(type as ImportType,rows);
-    if(errors.length)throw new AppError(422,'IMPORT_VALIDATION_FAILED','Import contains invalid rows',errors.slice(0,200));
-    const schoolId=getTenantContext()?.schoolId;
-    if(!schoolId)throw new Error('Tenant context missing');
-    const safeRows=rows.map((row:any)=>({...row,schoolId,deletedAt:null}));
-    const inserted=type==='students'
-      ?await Student.insertMany(safeRows,{ordered:false})
-      :await Teacher.insertMany(safeRows,{ordered:false});
-    return{success:true,data:{inserted:inserted.length}};
-  });
+ await registerImportCallbacks(app);
+ app.get('/api/imports/jobs',{preHandler:requirePermission(PERMISSIONS.IMPORT_RUN)},async(request:any)=>{const limit=Math.min(Math.max(Number(request.query?.limit)||50,1),100);return{success:true,data:await ImportJob.find().sort({createdAt:-1}).limit(limit).lean()}});
+ app.get('/api/imports/jobs/:id',{preHandler:requirePermission(PERMISSIONS.IMPORT_RUN)},async(request:any)=>{if(!validId(request.params.id))throw new AppError(404,'NOT_FOUND','Import job not found');const job=await ImportJob.findById(request.params.id).lean();if(!job)throw new AppError(404,'NOT_FOUND','Import job not found');return{success:true,data:job}});
+ app.post('/api/imports/jobs',{preHandler:requirePermission(PERMISSIONS.IMPORT_RUN)},async(request:any)=>{
+  const{type,sourceAssetId}=request.body??{};if(!allowed.has(type as ImportType)||!validId(sourceAssetId))throw new AppError(400,'INVALID_INPUT','type and a valid sourceAssetId are required');
+  const asset:any=await FileAsset.findById(sourceAssetId).lean();if(!asset||asset.purpose!=='import-source')throw new AppError(404,'NOT_FOUND','Import source file not found');if(asset.status!=='READY'||!['CLEAN','SKIPPED'].includes(asset.scanStatus))throw new AppError(423,'FILE_NOT_READY','Import source must pass file verification first');
+  const schoolId=getTenantContext()?.schoolId;if(!schoolId)throw new AppError(403,'TENANT_REQUIRED','School context required');const job:any=await ImportJob.create({type,sourceAssetId:asset._id,sourceName:asset.originalName,status:'QUEUED',createdBy:request.auth.sub});
+  try{await enqueueImport({jobId:String(job._id),schoolId,bucket:storageBucket(),key:asset.objectKey,contentType:asset.contentType,type,sourceName:asset.originalName})}catch{job.status='FAILED';job.failureReason='Import job could not be queued';job.completedAt=new Date();job.updatedAt=new Date();await job.save();throw new AppError(503,'IMPORT_QUEUE_UNAVAILABLE','Import job could not be queued')}
+  return{success:true,data:job};
+ });
 }

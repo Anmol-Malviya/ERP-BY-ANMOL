@@ -5,14 +5,22 @@ import { env } from '../config/env.js';
 export type EmailJob={to:string;subject:string;text?:string;html?:string;replyTo?:string;tags?:Record<string,string>};
 export type FileScanJob={assetId:string;schoolId:string;bucket:string;key:string;contentType:string;size:number};
 export type PaymentEventJob={eventId:string};
-let redis:Redis|undefined,emailQueue:Queue<EmailJob>|undefined,fileScanQueue:Queue<FileScanJob>|undefined,paymentEventQueue:Queue<PaymentEventJob>|undefined,paymentReconcileQueue:Queue<Record<string,never>>|undefined;
+export type ImportJobPayload={jobId:string;schoolId:string;bucket:string;key:string;contentType:string;type:'students'|'teachers';sourceName:string};
+export type PdfJob={documentId:string;schoolId:string;bucket:string;key:string;fileName:string;render:{schoolName:string;schoolAddress?:string;title:string;body:string;footer?:string;signerName?:string;signerDesignation?:string;serialNo:string;verificationCode:string;issuedDate:string}};
+
+let redis:Redis|undefined;
+let emailQueue:Queue<EmailJob>|undefined,fileScanQueue:Queue<FileScanJob>|undefined,paymentEventQueue:Queue<PaymentEventJob>|undefined,paymentReconcileQueue:Queue<Record<string,never>>|undefined,pdfQueue:Queue<PdfJob>|undefined,importQueue:Queue<ImportJobPayload>|undefined;
 function connection(){if(redis)return redis;redis=new Redis(env.REDIS_URL,{maxRetriesPerRequest:1,enableOfflineQueue:false});redis.on('error',()=>undefined);return redis}
 function emails(){return emailQueue??=new Queue<EmailJob>('erp:email',{connection:connection(),defaultJobOptions:{attempts:5,backoff:{type:'exponential',delay:2_000},removeOnComplete:500,removeOnFail:1_000}})}
 function scans(){return fileScanQueue??=new Queue<FileScanJob>('erp:file-scan',{connection:connection(),defaultJobOptions:{attempts:4,backoff:{type:'exponential',delay:3_000},removeOnComplete:500,removeOnFail:2_000}})}
 function paymentEvents(){return paymentEventQueue??=new Queue<PaymentEventJob>('erp:payment-event',{connection:connection(),defaultJobOptions:{attempts:8,backoff:{type:'exponential',delay:2_000},removeOnComplete:2_000,removeOnFail:5_000}})}
 function paymentReconcile(){return paymentReconcileQueue??=new Queue<Record<string,never>>('erp:payment-reconcile',{connection:connection(),defaultJobOptions:{attempts:3,backoff:{type:'exponential',delay:5_000},removeOnComplete:100,removeOnFail:500}})}
+function pdfs(){return pdfQueue??=new Queue<PdfJob>('erp:pdf',{connection:connection(),defaultJobOptions:{attempts:4,backoff:{type:'exponential',delay:3_000},removeOnComplete:1_000,removeOnFail:2_000}})}
+function imports(){return importQueue??=new Queue<ImportJobPayload>('erp:import',{connection:connection(),defaultJobOptions:{attempts:3,backoff:{type:'exponential',delay:4_000},removeOnComplete:500,removeOnFail:2_000}})}
 export async function enqueueEmail(data:EmailJob){return emails().add('send',data)}
 export async function enqueueFileScan(data:FileScanJob){return scans().add('scan',data,{jobId:`scan-${data.assetId}`})}
 export async function enqueuePaymentEvent(data:PaymentEventJob){return paymentEvents().add('process',data,{jobId:`razorpay-${data.eventId}`})}
+export async function enqueuePdf(data:PdfJob){return pdfs().add('render',data,{jobId:`document-${data.documentId}`})}
+export async function enqueueImport(data:ImportJobPayload){return imports().add('process',data,{jobId:`import-${data.jobId}`})}
 export async function ensureJobSchedulers(){await paymentReconcile().upsertJobScheduler('razorpay-reconciliation',{every:5*60_000},{name:'reconcile',data:{},opts:{attempts:3,backoff:{type:'exponential',delay:5_000},removeOnComplete:100,removeOnFail:500}})}
-export async function closeQueues(){await Promise.all([emailQueue?.close(),fileScanQueue?.close(),paymentEventQueue?.close(),paymentReconcileQueue?.close()].filter(Boolean) as Promise<unknown>[]);if(redis&&redis.status!=='end')await redis.quit().catch(()=>undefined);emailQueue=undefined;fileScanQueue=undefined;paymentEventQueue=undefined;paymentReconcileQueue=undefined;redis=undefined}
+export async function closeQueues(){await Promise.all([emailQueue?.close(),fileScanQueue?.close(),paymentEventQueue?.close(),paymentReconcileQueue?.close(),pdfQueue?.close(),importQueue?.close()].filter(Boolean) as Promise<unknown>[]);if(redis&&redis.status!=='end')await redis.quit().catch(()=>undefined);emailQueue=undefined;fileScanQueue=undefined;paymentEventQueue=undefined;paymentReconcileQueue=undefined;pdfQueue=undefined;importQueue=undefined;redis=undefined}
