@@ -10,6 +10,7 @@ const ImportJobSchema=new Schema({
  processedRows:{type:Number,default:0,min:0},
  insertedRows:{type:Number,default:0,min:0},
  rejectedRows:{type:Number,default:0,min:0},
+ completedBatchIndexes:{type:[Number],default:[],select:false},
  errors:[{row:Number,field:String,message:String}],
  errorCount:{type:Number,default:0,min:0},
  failureReason:String,
