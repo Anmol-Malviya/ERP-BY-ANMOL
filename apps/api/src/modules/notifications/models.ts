@@ -1,0 +1,2 @@
+import { Schema,model } from 'mongoose';import { tenantPlugin } from '../../core/tenant-plugin.js';
+const N=new Schema({userId:{type:Schema.Types.ObjectId,ref:'User',required:true,index:true},title:{type:String,required:true},body:{type:String,required:true},type:{type:String,default:'INFO'},link:String,readAt:Date,createdAt:{type:Date,default:Date.now,index:true}},{versionKey:false});N.plugin(tenantPlugin);export const Notification=model('Notification',N);

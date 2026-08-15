@@ -1,0 +1,2 @@
+import { describe,it,expect } from 'vitest';import { DEFAULT_ROLE_PERMISSIONS,PERMISSIONS } from '@erp/contracts';
+describe('RBAC',()=>{it('school admin owns all permissions',()=>expect(DEFAULT_ROLE_PERMISSIONS.SCHOOL_ADMIN.length).toBe(Object.values(PERMISSIONS).length));it('student cannot collect fees',()=>expect(DEFAULT_ROLE_PERMISSIONS.STUDENT).not.toContain(PERMISSIONS.FEE_COLLECT));it('accounts cannot publish results',()=>expect(DEFAULT_ROLE_PERMISSIONS.ACCOUNTS_MANAGER).not.toContain(PERMISSIONS.RESULT_PUBLISH));});

@@ -1,0 +1,30 @@
+import{LayoutDashboard,Users,UserRoundCog,GraduationCap,ClipboardList,BookOpen,CalendarDays,CheckSquare,NotebookPen,FileBarChart,WalletCards,Library,Landmark,Palmtree,MessageSquareText,Files,Upload,Bell,ChartNoAxesCombined,Settings,ShieldCheck,Fingerprint,ScanLine,FileInput}from'lucide-react';
+import{PERMISSIONS}from'@erp/contracts';
+export const nav=[
+['Dashboard','/',LayoutDashboard,null],
+['Students','/students',Users,PERMISSIONS.STUDENT_READ],
+['Parents','/parents',Users,PERMISSIONS.STUDENT_READ],
+['Teachers','/teachers',UserRoundCog,PERMISSIONS.TEACHER_READ],
+['Staff','/staff',Users,PERMISSIONS.STAFF_READ],
+['Admissions','/admissions',ClipboardList,PERMISSIONS.ADMISSION_READ],
+['Academics','/academics',GraduationCap,PERMISSIONS.ACADEMICS_READ],
+['Timetable','/timetable',CalendarDays,PERMISSIONS.TIMETABLE_READ],
+['Attendance','/attendance',CheckSquare,PERMISSIONS.ATTENDANCE_READ],
+['Assignments','/assignments',NotebookPen,PERMISSIONS.ASSIGNMENT_READ],
+['Examinations','/exams',BookOpen,PERMISSIONS.EXAM_READ],
+['Report Cards','/report-cards',FileBarChart,PERMISSIONS.REPORT_CARD_READ],
+['Fees & Accounts','/fees',WalletCards,PERMISSIONS.FEE_READ],
+['Library','/library',Library,PERMISSIONS.LIBRARY_READ],
+['Payroll','/payroll',Landmark,PERMISSIONS.PAYROLL_READ],
+['Leaves','/leaves',Palmtree,PERMISSIONS.LEAVE_READ],
+['Communication','/communication',MessageSquareText,PERMISSIONS.COMMUNICATION_READ],
+['Documents','/documents',Files,PERMISSIONS.DOCUMENT_READ],
+['Bulk Import','/imports',Upload,PERMISSIONS.IMPORT_RUN],
+['Notifications','/notifications',Bell,PERMISSIONS.COMMUNICATION_READ],
+['Analytics','/analytics',ChartNoAxesCombined,PERMISSIONS.ANALYTICS_READ],
+['Biometric','/biometric',Fingerprint,PERMISSIONS.BIOMETRIC_READ],
+['OASES Evaluation','/oases',ScanLine,PERMISSIONS.OASES_READ],
+['Custom Forms','/custom-forms',FileInput,PERMISSIONS.CUSTOM_FORM_READ],
+['Settings','/settings',Settings,PERMISSIONS.SCHOOL_MANAGE],
+['Audit Log','/audit',ShieldCheck,PERMISSIONS.AUDIT_READ]
+]as const;
