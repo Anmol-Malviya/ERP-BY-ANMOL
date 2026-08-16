@@ -6,9 +6,9 @@ import { Student } from '../src/modules/people/models.js';
 import { FeeInvoice,FeePayment,FeeRefund } from '../src/modules/fees/models.js';
 import { collectManualPayment,requestRefund } from '../src/modules/fees/service.js';
 let schoolId='';
-beforeAll(async()=>{await connectDb();const school=await School.create({name:'Fee Test',code:`F${Date.now()}`,status:'ACTIVE'});schoolId=String(school._id)});
-afterEach(async()=>{await runWithTenant({schoolId},()=>Promise.all([FeeRefund.deleteMany({}),FeePayment.deleteMany({}),FeeInvoice.deleteMany({}),Student.deleteMany({})]))});
-afterAll(async()=>{await School.findByIdAndDelete(schoolId);await disconnectDb()});
+beforeAll(async()=>{await connectDb();const school=await School.create({name:'Fee Test',code:`F${Date.now().toString(36)}`,status:'ACTIVE'});schoolId=String(school._id)});
+afterEach(async()=>{if(!schoolId)return;await runWithTenant({schoolId},()=>Promise.all([FeeRefund.deleteMany({}),FeePayment.deleteMany({}),FeeInvoice.deleteMany({}),Student.deleteMany({})]))});
+afterAll(async()=>{if(schoolId)await School.findByIdAndDelete(schoolId);await disconnectDb()});
 async function invoice(total=1000){return runWithTenant({schoolId},async()=>{const student=await Student.create({firstName:'Fee',admissionNo:`A${Date.now()}`});return FeeInvoice.create({invoiceNo:`INV-${Date.now()}`,studentId:student._id,total,balance:total,paid:0})})}
 describe('fee ledger idempotency',()=>{
  it('applies a retried manual collection only once',async()=>{await runWithTenant({schoolId},async()=>{const inv=await invoice();const input={invoiceId:inv._id,amount:400,mode:'CASH',idempotencyKey:'cash_payment_001',collectedBy:null};const first=await collectManualPayment(input);const second=await collectManualPayment(input);expect(first.payment).not.toBeNull();expect(second.payment).not.toBeNull();expect(first.payment!._id.toString()).toBe(second.payment!._id.toString());const current:any=await FeeInvoice.findById(inv._id).lean();expect(current.paid).toBe(400);expect(current.balance).toBe(600);expect(current.appliedPaymentKeys).toEqual(['cash_payment_001']);expect(await FeePayment.countDocuments()).toBe(1)})});
